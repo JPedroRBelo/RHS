@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - Location
+  - Object
+  - Kitchen_Table
+  - Living_Table
+  - Avatar
+  - Robot
+  - Wall
+  - Floor
+  - LivingRoom
+  - Kitchen
+  - Position
+  - Ceiling
+  - UIDropdown
+  - Switch
+  - Rotation
+  - Window
+  - Lamp
+  - Furniture
+  - Decor
+  - Door
+  - Drawer
+  - KnowLocations
+  - Glass
+  - Human
+  - Tap
+  - SmellParticle
+  - BodyPart
+  - BodySensor
+  - Water
+  - Pie
+  - Cracker
+  - Table
+  - Candle
+  - Photo_Frame
+  - Stove
+  - Counter
+  - Mug
+  - Cooking_Pot
+  - Fridge_Pan
+  - Chair
+  - Painting
+  - Book_Case
+  - Cabinet
+  - Fridge
+  - Meat_Pack
+  - Salmon_Pack
+  - Plate
+  - Cup_Cake
+  - Sofa
+  - Book_Shelf
+  - Carpet
+  - TV
+  - Stand
+  - Frying_Pan
+  - Book
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - 
+  - Icon
+  - SmellParticle
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
