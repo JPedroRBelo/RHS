@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -151,6 +151,7 @@ public class AgentHeadMovement : MonoBehaviour {
                             break;
                         case (int)LookFor.Position:
                             ik = true;
+                            Quaternion auxQuater = Quaternion.Euler(listOfRotations[0]);
                             moveFocus(originalFocusRotation);                            
                             if (isFocusMoved(focus.parent.localRotation, originalFocusRotation))
                             {
@@ -298,7 +299,7 @@ public class AgentHeadMovement : MonoBehaviour {
     private GameObject getOnList(List<GameObject> listGameObjects, string name)
     {
         foreach (GameObject item in listGameObjects)
-            if (item.name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            if (item.name.Equals(name, StringComparison.OrdinalIgnoreCase) || item.tag.Equals(name, StringComparison.OrdinalIgnoreCase))
                 return item;
         return null;
     }
@@ -306,7 +307,7 @@ public class AgentHeadMovement : MonoBehaviour {
     private bool isOnList(List<GameObject> listGameObjects, string name)
     {
         foreach (GameObject item in listGameObjects)
-            if (item.name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            if (item.name.Equals(name, StringComparison.OrdinalIgnoreCase)|| item.tag.Equals(name, StringComparison.OrdinalIgnoreCase))
                 return true;
         return false;
     }
