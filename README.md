@@ -2,7 +2,7 @@
 
 The Robot House Simulator (RHS) is a simulator for Social Robotics. The simulator is part of a larger system, called CMDE, described in the OntSense repository at: https://github.com/helioaz/ontSense/. RHS is developed using the Unity Engine, under GPL v3.0 license.
 
-# ROS and RHS
+## ROS and RHS
 
 This repository provides a Robot Operating System (ROS) package for communicating and sending commands to the RHS. The package was written in C ++ using the Kinetic Kame version of ROS. (under construction)
 
