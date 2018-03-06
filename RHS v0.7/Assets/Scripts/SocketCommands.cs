@@ -1,4 +1,4 @@
-﻿
+
    using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,16 +6,51 @@ using System.Net.Sockets;
 using System;
 using System.Net;
 using System.IO;
-using ProtoBuf;
+//using ProtoBuf;
 using System.Linq;
 using UnityEngine.UI;
+using System.Text;
 
-public enum CommandType
+/*public enum CommandType
 {
     ActivateLeft, ActivateRight, DeactivateLeft, DeactivateRight,
     HeadReset, LeaveLeft, LeaveRight, LookAt, LookFor, Move,
     Rotate, SmellLeft, SmellRight, Speech, TakeLeft, TakeRight,
     TasteLeft, TasteRight, Turn, CancelCommands
+}
+*/
+
+public enum CommandType
+{
+    ActivateLeft = 1,
+    ActivateRight = 2,
+    DeactivateLeft = 3,
+    DeactivateRight = 4,
+    HeadReset = 5,
+    LeaveLeft = 6,
+    LeaveRight = 7,
+    LookAt = 8,
+    LookFor = 9,
+    Move = 10,
+    Rotate = 11,
+    SmellLeft = 12,
+    SmellRight = 13,
+    Speech = 14,
+    TakeLeft = 15,
+    TakeRight = 16,
+    TasteLeft = 17,
+    TasteRight = 18,
+    Turn = 19,
+    CancelCommands = 20
+};
+
+enum ParameterType
+{
+    WithId = 1,
+    WithPos = 2,
+    WithAngle = 3,
+    WithString = 4,
+    WithoutParameter = 5
 }
 
 
@@ -28,18 +63,21 @@ public class SocketCommands : MonoBehaviour
     //public GameObject messagePrefab;
 
     public int port = 6321;
+    private const int MAXDATASIZE =  4096;    // max number of bytes we can send at once
+    private const int BACKLOG = 10;          // how many pending connections queue will hold
+    private const string DELIMITER = "<|>";
     private TcpListener server;
     private bool serverStarted;
     private SimulatorCommandsManager scm;
     private UniqueIdDistributor uid;
     
 
-
+/*
     static readonly IDictionary<int, Type> typeLookup = new Dictionary<int, Type>
     {
         {1, typeof(CommandWithId)}, {2, typeof(CommandWithAngle)}, {3, typeof(CommandWithoutPar)},
         { 4, typeof(CommandWithPosition)}, {5, typeof(CommandWithString)}, {6, typeof(Response)}
-    };
+    };*/
 
     private void Start()
     {
@@ -81,17 +119,34 @@ public class SocketCommands : MonoBehaviour
                 NetworkStream s = client.tcp.GetStream();
                 if (s.DataAvailable)
                 {
+                    /*
+                    System.Text.Decoder d = System.Text.Encoding.UTF8.GetDecoder();
+                    int charLen = d.GetChars(buffer, 0, iRx, chars, 0);
+                    System.String recv = new System.String(chars);
                     //StreamReader reader = new StreamReader(s, true);
-                    // string data = reader.ReadLine();
-                    object data;
-                    if (Serializer.NonGeneric.TryDeserializeWithLengthPrefix(s, PrefixStyle.Base128, field => typeLookup[field], out data))
+                    BinaryReader reader = new BinaryReader(s);
+                     string data = reader.ReadString();
+                     print("Tamanho> "+data.Length);*/
+
+                    byte[] myReadBuffer = new byte[1024];
+                    StringBuilder myCompleteMessage = new StringBuilder();
+                    int numberOfBytesRead = 0;
+
+                    // Incoming message may be larger than the buffer size.
+                    do
                     {
+                        numberOfBytesRead = s.Read(myReadBuffer, 0, myReadBuffer.Length);
+
+                        myCompleteMessage.AppendFormat("{0}", Encoding.ASCII.GetString(myReadBuffer, 0, numberOfBytesRead));
+
+                    }
+                    while (s.DataAvailable);
+                    string data = myCompleteMessage.ToString(); 
+                    if (data != null && data != "")
+                    {
+                        print(">" + data.ToString() + "<");
                         onIncomingData(client, data);
                     }
-                    /*if (data != null)
-                    {
-                        onIncomingData(c, data);
-                    }*/
                 }
                 List<Command> auxList = new List<Command>(runningCommands);
                 foreach(Command c in auxList)
@@ -100,7 +155,7 @@ public class SocketCommands : MonoBehaviour
                     switch (c.getCommandStatus())
                     {
                         case CommandStatus.Success:
-                             response= new Response { idCommand = c.getId(), executed = true };
+                            response= new Response { idCommand = c.getId(), executed = true };
                             sendResponse(response);
                             runningCommands.Remove(c);
                             break;
@@ -144,6 +199,7 @@ public class SocketCommands : MonoBehaviour
         {
             return false;
         }
+
     }
 
     private void startListening()
@@ -165,7 +221,7 @@ public class SocketCommands : MonoBehaviour
         //broadcast("%NAME",new List<ServerClient>() { clients[clients.Count - 1] });
     }
 
-    private void onIncomingData(ServerClient c, object data)
+    private void onIncomingData(ServerClient c, string data)
     {
         /*if (data.Contains("&NAME"))
         {
@@ -178,213 +234,59 @@ public class SocketCommands : MonoBehaviour
         //sendResponse();
     }
 
-    private void processCommand(object data)
+    private void processCommand(string data)
     {
-        string idCommand = "";
-        //Tanto faz o valor inicial (gambiarra)
-        Action action = Action.Rotate;
-        Hands hand = Hands.Right;
-        bool itsValid = true;
-        if (data.GetType() == typeof(CommandWithId))
+        string idCommand = getCommandId(data);
+        CommandType commandType = getCommandType(data);
+        ParameterType parameterType = getParameterType(data);
+        
+        if (checkCmdParType(commandType, parameterType))
         {
-            CommandWithId cWId = (CommandWithId)data;
-            idCommand = cWId.commandId;
-            GameObject gO = getGameObjectById(cWId.objectId);
-            if (gO != null)
+            ActionHand ah = getActionAndHand(commandType);
+            if (ah != null)
             {
-                switch (cWId.commandType)
+                switch (parameterType)
                 {
-                    case CommandType.ActivateLeft:
-                        hand = Hands.Left;
-                        action = Action.Activate;
+                    case ParameterType.WithId:
+                        int id = getId(data);
+                        GameObject gO = getGameObjectById(id);
+                        runningCommands.Add(scm.sendCommand(idCommand, ah.hand, ah.action, gO.transform));
                         break;
-                    case CommandType.ActivateRight:
-                        action = Action.Activate;
+                    case ParameterType.WithPos:
+                        Position3 position = getPosition(data);
+                        Vector3 auxPosition = new Vector3(position.x, position.y, position.z);
+                        runningCommands.Add(scm.sendCommand(idCommand, ah.hand, ah.action, auxPosition));
                         break;
-                    case CommandType.DeactivateLeft:
-                        hand = Hands.Left;
-                        action = Action.Deactivate;
+                    case ParameterType.WithString:
+                        string str = getText(data);
+                        runningCommands.Add(scm.sendCommand(idCommand, ah.action, str));
                         break;
-                    case CommandType.DeactivateRight:
-                        action = Action.Deactivate;
+                    case ParameterType.WithAngle:
+                        float angle = getAngle(data);
+                        runningCommands.Add(scm.sendCommand(idCommand, ah.action, angle));
+
                         break;
-                    case CommandType.LeaveLeft:
-                        hand = Hands.Left;
-                        action = Action.Release;
-                        break;
-                    case CommandType.LeaveRight:
-                        action = Action.Release;
-                        break;
-                    case CommandType.LookAt:
-                        action = Action.HeadFocus;
-                        break;
-                    case CommandType.Move:
-                        action = Action.Move;
-                        break;
-                    case CommandType.TakeLeft:
-                        hand = Hands.Left;
-                        action = Action.Take;
-                        break;
-                    case CommandType.TakeRight:
-                        action = Action.Take;
-                        break;
-                    case CommandType.Turn:
-                        action = Action.Turn;
+                    case ParameterType.WithoutParameter:
+                        if (ah.isToUseHand())
+                            runningCommands.Add(scm.sendCommand(idCommand, ah.hand, ah.action));
+                        else
+                            runningCommands.Add(scm.sendCommand(idCommand, ah.action));
                         break;
                     default:
-                        itsValid = false;
-                        break;
-                }
-                if (itsValid)
-                {
-                    runningCommands.Add(scm.sendCommand(idCommand, hand, action, gO.transform));
+                        {
+                            break;
+                        }
+
                 }
             }
             else
             {
-                itsValid = false;
+                Response response = new Response { idCommand = idCommand, executed = false };
+                sendResponse(response);
             }
-                       
 
-        }
-        else if (data.GetType() == typeof(CommandWithAngle))
-        {
-            CommandWithAngle cWAngle = (CommandWithAngle)data;
-            idCommand = cWAngle.commandId;
-            float angle = cWAngle.angle;
-            itsValid = true;
-            switch (cWAngle.commandType)
-            {
-                case CommandType.Rotate:
-                    action = Action.Rotate;
-                    break;
-                default:
-                    itsValid = false;
-                    break;
-            }
-            if (itsValid)
-            {
-                runningCommands.Add(scm.sendCommand(idCommand, action, angle));
-            }
-        }
-        else if (data.GetType() == typeof(CommandWithoutPar))
-        {
-            CommandWithoutPar cWPar = (CommandWithoutPar)data;
-            idCommand = cWPar.commandId;
-            bool isAHandCommand = true;
-            switch (cWPar.commandType)
-            {
-                case CommandType.HeadReset:
-                    action = Action.HeadReset;
-                    isAHandCommand = false;
-                    break;
-                case CommandType.TasteLeft:
-                    action = Action.Taste;
-                    hand = Hands.Left;
-                    break;
-                case CommandType.TasteRight:
-                    hand = Hands.Right;
-                    action = Action.Taste;
-                    break;
-                case CommandType.SmellLeft:
-                    hand = Hands.Left;
-                    action = Action.Smell;
-                    break;
-                case CommandType.SmellRight:
-                    hand = Hands.Right;
-                    action = Action.Smell;
-                    break;
-                case CommandType.CancelCommands:
-                    action = Action.Cancel;
-                    isAHandCommand = false;
-                    break;
-                default:
-                    itsValid = false;
-                    break;
-            }
-            if (itsValid)
-            {
-                if(isAHandCommand)
-                    runningCommands.Add(scm.sendCommand(idCommand,hand, action));
-                else
-                    runningCommands.Add(scm.sendCommand(idCommand, action));
-            }
-        }
-        else if (data.GetType() == typeof(CommandWithPosition))
-        {
-            CommandWithPosition cWPosition = (CommandWithPosition)data;
-            idCommand = cWPosition.commandId;
-            hand = Hands.Right;
-            bool isCommWithHand = false;
-
-            switch (cWPosition.commandType)
-            {                
-                case CommandType.LeaveLeft:
-                    hand = Hands.Left;
-                    isCommWithHand = true;
-                    action = Action.Release;
-                    break;
-                case CommandType.LeaveRight:
-                    isCommWithHand = true;
-                    action = Action.Release;
-                    break;
-                case CommandType.LookAt:
-                    action = Action.HeadFocus;
-                    break;
-                case CommandType.Move:
-                    action = Action.Move;
-                    break;
-                case CommandType.Turn:
-                    action = Action.Turn;
-                    break;
-                default:
-                    itsValid = false;
-                    break;
-            }
-            if (itsValid)
-            {
-                Vector3 auxPosition = new Vector3(cWPosition.position3.x, cWPosition.position3.y, cWPosition.position3.z);
-                runningCommands.Add(scm.sendCommand(idCommand, hand, action, auxPosition));
-               
-            }
-        }
-        else if (data.GetType() == typeof(CommandWithString))
-        {
-            CommandWithString cWString = (CommandWithString)data;
-            idCommand = cWString.commandId;
-            hand = Hands.Right;
-
-            switch (cWString.commandType)
-            {
-
-                case CommandType.Speech:
-                    action = Action.Speak;
-                    break;
-                case CommandType.LookFor:
-                    action = Action.LookFor;
-                    break;
-                default:
-                    itsValid = false;
-                    break;
-            }
-            if (itsValid)
-            {
-                string str = cWString.str;
-                runningCommands.Add(scm.sendCommand(idCommand,  action, str));
-            }
-        }
-        else
-        {
-            itsValid = false;
-            idCommand = data.ToString();
-        }
-        if (!itsValid)
-        {
-            Response response = new Response { idCommand = idCommand, executed = false };
-            sendResponse(response);
         }
     }
-
     private GameObject getGameObjectById(int id)
     {
         GameObject gO = null;
@@ -405,10 +307,13 @@ public class SocketCommands : MonoBehaviour
     {
         try
         {
-            Type type = data.GetType();
-            int field = typeLookup.Single(pair => pair.Value == type).Key;
-            Serializer.NonGeneric.SerializeWithLengthPrefix(client.tcp.GetStream(), data, PrefixStyle.Base128, field);
-            client.tcp.GetStream().Flush();
+            //Type type = data.GetType();
+            //int field = typeLookup.Single(pair => pair.Value == type).Key;
+         //Serializer.NonGeneric.SerializeWithLengthPrefix(client.tcp.GetStream(), data, PrefixStyle.Base128, field);
+            string stringData = data.idCommand + DELIMITER + Convert.ToInt32(data.executed);
+            StreamWriter writer = new StreamWriter(client.tcp.GetStream());
+            writer.WriteLine(stringData);
+            writer.Flush();
             if(data.executed)
                 Debug.Log("RHS>>>  response sended to cliente: " + data.idCommand + " command finalized with success.");
             else
@@ -419,49 +324,289 @@ public class SocketCommands : MonoBehaviour
             Debug.Log("System>>> Write error: " + e.Message + " to client " + client.clientName);
         }
     }
-    
-   /* public void sendCommand(string )
+
+    private ActionHand getActionAndHand(CommandType commandType)
     {
-        string typeParameter = Command.DictActions[Action.Activate].typeParameter;
-        if (typeParameter.Equals(Constants.PAR_ROTATION))
+        ActionHand actionHand = null;
+        switch (commandType)
         {
-            scm.sendCommand(getSelectedActionItem(), sliderRotation.value);
+            case CommandType.ActivateLeft:
+                actionHand = new ActionHand(Action.Activate, Hands.Left);
+                break;
+            case CommandType.ActivateRight:
+                actionHand = new ActionHand(Action.Activate, Hands.Right);
+                break;
+            case CommandType.DeactivateLeft:
+                actionHand = new ActionHand(Action.Deactivate, Hands.Left);
+                break;
+            case CommandType.DeactivateRight:
+                actionHand = new ActionHand(Action.Deactivate, Hands.Right);
+                break;
+            case CommandType.LeaveLeft:
+                actionHand = new ActionHand(Action.Release, Hands.Left);
+                break;
+            case CommandType.LeaveRight:
+                actionHand = new ActionHand(Action.Release, Hands.Right);
+                break;
+            case CommandType.LookAt:
+                actionHand = new ActionHand(Action.Release);
+                break;
+            case CommandType.Speech:
+                actionHand = new ActionHand(Action.Speak);
+                break;
+            case CommandType.LookFor:
+                actionHand = new ActionHand(Action.LookFor);
+                break;
+            case CommandType.Move:
+                actionHand = new ActionHand(Action.Move);
+                break;
+            case CommandType.TakeLeft:
+                actionHand = new ActionHand(Action.Take,Hands.Left);
+                break;
+            case CommandType.TakeRight:
+                actionHand = new ActionHand(Action.Take, Hands.Right);
+                break;
+            case CommandType.Turn:
+                actionHand = new ActionHand(Action.Turn);
+                break;
+            case CommandType.HeadReset:
+                actionHand = new ActionHand(Action.HeadReset);
+                break;
+            case CommandType.Rotate:
+                actionHand = new ActionHand(Action.Rotate);
+                break;
+            case CommandType.TasteLeft:
+                actionHand = new ActionHand(Action.Taste,Hands.Left);
+                break;
+            case CommandType.TasteRight:
+                actionHand = new ActionHand(Action.Taste, Hands.Right);
+                break;
+            case CommandType.SmellLeft:
+                actionHand = new ActionHand(Action.Smell, Hands.Left);
+                break;
+            case CommandType.SmellRight:
+                actionHand = new ActionHand(Action.Smell, Hands.Right);
+                break;
+            case CommandType.CancelCommands:
+                actionHand = new ActionHand(Action.Cancel);
+                break;
+            default:
+                actionHand = null;
+                break;
         }
-        else if (typeParameter.Equals(Constants.PAR_STRING))
+
+        return actionHand;
+    }
+
+    float toFloat(string str)
+    {
+        return float.Parse(str, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    int toInt(string str)
+    {
+        int number;
+        Int32.TryParse(str, out number);
+        return number;
+    }
+
+    //Get substring before DELIMITER
+    string getNext(string str)
+    {
+        int pos = str.IndexOf(DELIMITER); //First Delimiter
+        if (pos > 0)
         {
-            scm.sendCommand(getSelectedActionItem(), inputFieldLookFor.text);
+            return str.Substring(0, pos);
         }
-        else if (typeParameter.Equals(Constants.PAR_NULL))
+        return str;
+    }
+    //Get substring after first DELIMITER
+    string getAfter(string str)
+    {
+        int pos = str.IndexOf(DELIMITER); //First Delimiter
+        string subData = str.Substring(pos + DELIMITER.Length);       
+        return subData;
+    }
+
+    /*
+        .=======================================.===================.===================.=================.
+        |               CommandID               |   CommandType     |   ParameterType   |     Params      |
+        :=================================================================================================:
+        | 1E009820-008C-2E00-756C-E0CB4EE729FE  |   ActivateLeft    |       WithId      |   123345654654  |
+        |---------------------------------------|-------------------|-------------------|-----------------|
+        | 1E009820-008C-2E00-756C-E0CB4EE729FE  |       Move        |       WithId      |   123345654654  |
+        |---------------------------------------|-------------------|-------------------|-----.-----.-----|
+        | 1E009820-008C-2E00-756C-E0CB4EE729FE  |       Move        |       WithPos     | 3.4 | 5.6 |-5.3 |
+        |---------------------------------------|-------------------|-------------------|-----'-----'-----|
+        | 1E009820-008C-2E00-756C-E0CB4EE729FE  |      Rotate       |      WithAngle    |      -50.5      |
+        |---------------------------------------|-------------------|-------------------|-----------------|
+        | 1E009820-008C-2E00-756C-E0CB4EE729FE  |      Speech       |      WithString   |"Example of par."|
+        |---------------------------------------|-------------------|-------------------|-----------------|
+        | 1E009820-008C-2E00-756C-E0CB4EE729FE  |  CancelCommands   |  WithoutParameter |                 |
+        '---------------------------------------'-------------------'-------------------'-----------------'
+
+
+
+    */
+
+    string getCommandId(string data)
+    {
+        string subData = getNext(data); //First Parameter
+        return subData;
+    }
+
+    CommandType getCommandType(string data)
+    {
+        string subData = getAfter(data); //After first Parameter
+        subData = getNext(subData);
+        CommandType cmdType = (CommandType)toInt(subData);
+        return cmdType;
+        //return subData;
+    }
+
+    ParameterType getParameterType(string data)
+    {
+        string subData = getAfter(data); //After first Parameter
+        subData = getAfter(subData); //After second Parameter
+        subData = getNext(subData);
+        ParameterType parType = (ParameterType)toInt(subData);
+        return parType;
+    }
+
+    int getId(string data)
+    {
+        string subData = getAfter(data); ////After first Parameter -> CommandType, ParameterType and Parameter
+        subData = getAfter(subData); //After second Parameter -> ParameterType and Parameter
+        subData = getAfter(subData); //After third Parameter -> Only Parameters
+        subData = getNext(subData); //Third Parameter -> Parameter of command, the ID
+        int id = toInt(subData);
+        return id;
+    }
+
+    float getAngle(string data)
+    {
+        string subData = getAfter(data); ////After first Parameter -> CommandType, ParameterType and Parameter
+        subData = getAfter(subData); //After second Parameter -> ParameterType and Parameter
+        subData = getAfter(subData); //After third Parameter -> Only Parameters
+        subData = getNext(subData); //Third Parameter -> Parameter of command, the Angle
+        float angle = toFloat(subData);
+        return angle;
+    }
+
+    string getText(string data)
+    {
+        string subData = getAfter(data); ////After first Parameter -> CommandType, ParameterType and Parameter
+        subData = getAfter(subData); //After second Parameter -> ParameterType and Parameter
+        subData = getAfter(subData); //After third Parameter -> Only Parameters
+        subData = getNext(subData); //Third Parameter -> Parameter of command, the Text
+        return subData;
+    }
+
+
+
+    Position3 getPosition(string data)
+    {
+        string subData = getAfter(data); ////After first Parameter -> CommandType, ParameterType and Parameter
+        subData = getAfter(subData); //After second Parameter -> ParameterType and Parameter
+        subData = getAfter(subData); //After third Parameter -> Only Parameters
+        string x = getNext(subData); //Third Parameter -> Parameter of command, the X, Y and Z axis of position
+        subData = getAfter(subData); // Y and Z
+        string y = getNext(subData); //Fourth Parameter -> Parameter of command, the y axis of position
+        subData = getAfter(subData); // Z
+        string z = getNext(subData); //Fifth Parameter -> Parameter of command, the Z axis of position
+
+        Position3 position = new Position3();
+        position.x = toFloat(x);
+        position.y = toFloat(y);
+        position.z = toFloat(z);
+        return position;
+    }
+
+    private bool checkCmdParType(CommandType cmdType, ParameterType parType)
+    {
+        switch (cmdType)
         {
-            scm.sendCommand(getSelectedActionItem());
+            case CommandType.ActivateLeft: return parType == ParameterType.WithId;
+            case CommandType.ActivateRight: return parType == ParameterType.WithId; ;
+            case CommandType.DeactivateLeft: return parType == ParameterType.WithId; ;
+            case CommandType.DeactivateRight: return parType == ParameterType.WithId; ;
+            case CommandType.HeadReset: return parType == ParameterType.WithoutParameter;
+            case CommandType.LeaveLeft: return parType == ParameterType.WithId || parType == ParameterType.WithPos;
+            case CommandType.LeaveRight: return parType == ParameterType.WithId || parType == ParameterType.WithPos;
+            case CommandType.LookAt: return parType == ParameterType.WithId || parType == ParameterType.WithPos;
+            case CommandType.LookFor: return parType == ParameterType.WithString;
+            case CommandType.Move: return parType == ParameterType.WithId || parType == ParameterType.WithPos;
+            case CommandType.Rotate: return parType == ParameterType.WithAngle;
+            case CommandType.SmellLeft: return parType == ParameterType.WithoutParameter;
+            case CommandType.SmellRight: return parType == ParameterType.WithoutParameter;
+            case CommandType.Speech: return parType == ParameterType.WithString;
+            case CommandType.TakeLeft: return parType == ParameterType.WithId;
+            case CommandType.TakeRight: return parType == ParameterType.WithId;
+            case CommandType.TasteLeft: return parType == ParameterType.WithoutParameter;
+            case CommandType.TasteRight: return parType == ParameterType.WithoutParameter;
+            case CommandType.Turn: return parType == ParameterType.WithId || parType == ParameterType.WithPos;
+            case CommandType.CancelCommands: return parType == ParameterType.WithoutParameter;
+            default: return false;
         }
-        else
+    }
+
+    private class ActionHand
+    {
+        public Action action { get; set; }
+        public Hands hand { get; set; }
+        private bool useHand;
+
+        public ActionHand(Action action, Hands hand)
         {
-            Hands hand = Hands.Right;
-            if (groupToggleHand.isActiveAndEnabled && groupToggleHand.GetActive().name.Equals(Constants.TGGL_LEFT))
-            {
-                hand = Hands.Left;
-            }
-            if (getSelectedActionItem() == Action.Taste)
-            {
-                scm.sendCommand(hand, Action.Taste);
-            }
-            else
-            {
-                Transform auxTransform = getListOfGameObjects()[dropdownElements.value].transform;
-                scm.sendCommand(hand, getSelectedActionItem(), auxTransform);
-            }
+            this.action = action;
+            this.hand = hand;
+            useHand = true;
         }
-    }*/
-    
+
+        public ActionHand(Action action)
+        {
+            this.action = action;
+            this.hand = Hands.Right;
+            useHand = false;
+        }
+
+        public bool isToUseHand()
+        {
+            return useHand;
+        }
+    }
+
 }
+
+class Position3
+{
+    public float x { get; set; }
+    public float y { get; set; }
+    public float z { get; set; }
+
+    public Position3()
+    {
+
+    }
+
+    public Position3(float x, float y, float z)
+    {
+        this.x = x;
+        this.y = y;
+        this.z = z;        
+    }
+
+
+    public override string ToString()
+    {
+        return "Position: " + x + ", " + y + ", " + z;
+    }
+}
+
 [Serializable]
-[ProtoContract]
 public class ServerClient
 {
-    [ProtoMember(1)]
     public TcpClient tcp;
-    [ProtoMember(2)]
     public string clientName;
 
     public ServerClient(TcpClient clientSocket)
@@ -471,110 +616,9 @@ public class ServerClient
     }
 }
 
-
-[ProtoContract]
-class CommandWithId
-{
-    [ProtoMember(1)]
-    public string commandId { get; set; }
-    [ProtoMember(2)]
-    public CommandType commandType { get; set; }
-    [ProtoMember(3)]
-    public int objectId { get; set; }
-
-    public override string ToString()
-    {
-        return "CommandId: " + commandId + "\nCommand Type: " + commandType + "\nObjectId: " + objectId;
-    }
-}
-
-[Serializable]
-[ProtoContract]
-class CommandWithPosition
-{
-    [ProtoMember(1)]
-    public string commandId { get; set; }
-    [ProtoMember(2)]
-    public CommandType commandType { get; set; }
-    [ProtoMember(3)]
-    public Position3 position3 { get; set; }
-
-    public override string ToString()
-    {
-        return "CommandId: " + commandId + "\nCommand Type: " + commandType + "\nObjectId: " + position3;
-    }
-}
-[Serializable]
-[ProtoContract]
-class CommandWithString
-{
-    [ProtoMember(1)]
-    public string commandId { get; set; }
-    [ProtoMember(2)]
-    public CommandType commandType { get; set; }
-    [ProtoMember(3)]
-    public string str { get; set; }
-
-    public override string ToString()
-    {
-        return "CommandId: " + commandId + "\nCommand Type: " + commandType + "\nString: " + str;
-    }
-}
-[Serializable]
-[ProtoContract]
-class CommandWithAngle
-{
-    [ProtoMember(1)]
-    public string commandId { get; set; }
-    [ProtoMember(2)]
-    public CommandType commandType { get; set; }
-    [ProtoMember(3)]
-    public float angle { get; set; }
-
-    public override string ToString()
-    {
-        return "CommandId: " + commandId + "\nCommand Type: " + commandType + "\nAngle: " + angle;
-    }
-}
-[Serializable]
-[ProtoContract]
-class CommandWithoutPar
-{
-    [ProtoMember(1)]
-    public string commandId { get; set; }
-    [ProtoMember(2)]
-    public CommandType commandType { get; set; }
-
-    public override string ToString()
-    {
-        return "CommandId: " + commandId + "\nCommand Type: " + commandType;
-    }
-}
-[Serializable]
-[ProtoContract]
-class Position3
-{
-    [ProtoMember(1)]
-    public float x { get; set; }
-    [ProtoMember(2)]
-    public float y { get; set; }
-    [ProtoMember(3)]
-    public float z { get; set; }
-
-    public override string ToString()
-    {
-        return "Position: " + x + ", " + y + ", " + z;
-    }
-}
-
-
-[Serializable]
-[ProtoContract]
 class Response
 {
-    [ProtoMember(1)]
     public string idCommand { get; set; }
-    [ProtoMember(2)]
     public bool executed { get; set; }
 
     public override string ToString()
@@ -587,5 +631,6 @@ class Response
         return "Command Id: " + idCommand + " " + auxString + "!";
     }
 }
+
 
 
