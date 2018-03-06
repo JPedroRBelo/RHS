@@ -1,0 +1,2 @@
+string commandId
+bool executed
