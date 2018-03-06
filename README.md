@@ -12,17 +12,12 @@ The RHS simulator will work perfectly without a cognitive architecture (or other
 
 To run RHS with ROS, you need to start running RHS on a Windows machine and the rhs_ros_bridge node on a Linux machine, both on the same network. The rhs_ros_package package contains a simple program (rhs_ros_talker.cpp) that allows sending commands to the rhs_ros_bridge.cpp, which is responsible for sending the message to the RHS via socket.
 
--modify the rhs_ros_bridge.cpp file and change the IP of the RHS host machine;
-
--compile the package rhs_ros_package with catkin_make;
-
--make sure the RHS is running;
-
--run roscore;
-
--run rhs_ros_package rhs_ros_bridge;
-
--run rhs_ros_package rhs_ros_talker.
+- modify the rhs_ros_bridge.cpp file and change the IP of the RHS host machine;
+- compile the package rhs_ros_package with catkin_make;
+- make sure the RHS is running;
+- run roscore;
+- run rhs_ros_package rhs_ros_bridge;
+- run rhs_ros_package rhs_ros_talker.
 
 
 ## More information
