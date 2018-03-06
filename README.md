@@ -1,6 +1,6 @@
 # RHS - Robot House Simulator
 
-The Robot House Simulator (RHS) is a simulator for Social Robotics. The simulator is part of a larger system, called CMDE, described in the OntSense repository at: github.com/helioaz/ontSense/. RHS is developed using the Unity Engine, under GPL v3.0 license.
+The Robot House Simulator (RHS) is a simulator for Social Robotics. The simulator is part of a larger system, called CMDE, described in the OntSense repository at: https://github.com/helioaz/ontSense. RHS is developed using the Unity Engine, under GPL v3.0 license.
 
 ## ROS and RHS
 
@@ -8,7 +8,7 @@ This repository provides a Robot Operating System (ROS) package for communicatin
 ## How to Run
 This version of RHS supports Windows only. The Unity version utilized is 2017.2.
 
-The RHS simulator will work perfectly without a cognitive architecture (or other decision-making system) and without a triplestore database (github.com/helioaz/ontSense/). You can view the sensing data through the lower left panel and send commands to the robot via ROS or via socket messages. 
+The RHS simulator will work perfectly without a cognitive architecture (or other decision-making system) and without a triplestore database (https://github.com/helioaz/ontSense). You can view the sensing data through the lower left panel and send commands to the robot via ROS or via socket messages. 
 
 To run RHS with ROS, you need to start running RHS on a Windows machine and the rhs_ros_bridge node on a Linux machine, both on the same network. The rhs_ros_package package contains a simple program (rhs_ros_talker.cpp) that allows sending commands to the rhs_ros_bridge.cpp, which is responsible for sending the message to the RHS via socket.
 
